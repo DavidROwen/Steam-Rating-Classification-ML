@@ -22,15 +22,21 @@ except TimeoutException:
     print("Timed out waiting for page to load")
     browser.quit()
 
-time.sleep(5)
 game_link_list = []
-elements = browser.find_elements_by_xpath("//a[contains(@href, 'steampowered.com/app/')]")
+while True:
+    # Grab elements from the page
+    elements = browser.find_elements_by_xpath("//a[contains(@href, 'steampowered.com/app/')]")
 
-try:
+    # Extract only the links
     for link in elements:
             game_link_list.append(link.get_attribute("href"))
 
+    # Check if there is any more pages left
+    try:
+        browser.find_element(By.XPATH, "//a[contains(text(),'>')]").click()
+        time.sleep(1)
+    except:
+        break
 
-finally:
-    print(game_link_list)
-    browser.close()
+print(len(game_link_list))
+browser.close()
