@@ -7,6 +7,9 @@ class Game:
     def __str__(self):
         return "{} {} Tags: {}".format(self.name, self.rating, self.tags)
 
+    def __repr__(self):
+        return "{} {} Tags: {}".format(self.name, self.rating, self.tags)
+
 def build_arff_from_games(games, file_name='default.arff'):
     file_contents = "@RELATION game_ratings\n\n"
     
