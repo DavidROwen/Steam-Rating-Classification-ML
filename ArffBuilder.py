@@ -1,8 +1,11 @@
-class Games:
-    def __init__(self,name='', tags='', rating=''):
+class Game:
+    def __init__(self, name='', tags=[], rating=''):
         self.name = name
         self.tags = tags
         self.rating = rating
+
+    def __str__(self):
+        return "{} {} Tags: {}".format(self.name, self.rating, self.tags)
 
 def build_arff_from_games(games, file_name='default.arff'):
     file_contents = "@RELATION game_ratings\n\n"
@@ -44,8 +47,8 @@ def build_arff_from_games(games, file_name='default.arff'):
     f.close()
 
 # all_games = []
-# all_games.append(Games('God of War', ['action', 'gore'], 'positive'))
-# all_games.append(Games('Pokemon', ['jrpg', 'water', 'adventure'], 'good'))
-# all_games.append(Games('Halo', ['action', 'shooter', 'fps', 'sci-fi'], 'positive'))
+# all_games.append(Game('God of War', ['action', 'gore'], 'positive'))
+# all_games.append(Game('Pokemon', ['jrpg', 'water', 'adventure'], 'good'))
+# all_games.append(Game('Halo', ['action', 'shooter', 'fps', 'sci-fi'], 'positive'))
 
 # build_arff_from_games(all_games, 'test.arff')
