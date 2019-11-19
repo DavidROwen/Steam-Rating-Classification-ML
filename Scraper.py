@@ -95,7 +95,7 @@ def scrape_links(browser):
     start_time = time.time()
     game_link_list = []
     while True:
-        time.sleep(2)
+        time.sleep(3)
         # Grab elements from the page
         wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable")
         try:
@@ -130,7 +130,7 @@ def scrape_links(browser):
         # Check if there is any more pages left
         try:
             wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable").click()
-        except:
+        except NoSuchElementException:
             print("No more games!")
             break
     return game_link_list
