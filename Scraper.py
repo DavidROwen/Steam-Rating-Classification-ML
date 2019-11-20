@@ -10,8 +10,7 @@ import time
 import pickle
 from ArffBuilder import Game, build_arff_from_games
 
-start_url = "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998"
-
+start_url = "https://store.steampowered.com/search/?sort_by=Reviews_DESC&category1=998"
 
 def scrape(entry_point, save=False, use_cached=False, links_only=False):
     start_time = time.time()
@@ -33,7 +32,6 @@ def scrape(entry_point, save=False, use_cached=False, links_only=False):
                 browser.quit()
 
             # Collect the links to each games page
-            
             game_link_list = scrape_links(browser)
             if save:
                 with open('game-store-page-links', 'wb') as fp:
@@ -97,36 +95,42 @@ def scrape_links(browser):
     while True:
         time.sleep(3)
         # Grab elements from the page
-        wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable")
         try:
-            elements = browser.find_elements_by_xpath("//div[@id='search_resultsRows']//a[contains(@href, 'steampowered.com/app/')]")
-        except:
-            break
-
-        reviews = browser.find_elements_by_xpath("//div[contains(@class, 'search_reviewscore')]")
-
+            wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable", refresh=True)
+        except WebDriverException:
+            print("Refreshing!")
+            browser.refresh()
+            try:
+                wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable")
+            except NoSuchElementException:
+                print("No more games!")
+        
         # Extract only the links with a review score to save time later.
         ratings = []
-        for review in reviews:
+        xpath_review = ".//div[contains(@class, 'search_reviewscore')]"
+        for review_index in range(len(browser.find_elements_by_xpath(xpath_review))):
             try:
-                spans = review.find_elements_by_xpath(".//span")
-                if len(spans) != 0:
-                    rating = spans[0].get_attribute("data-tooltip-html").split("<")[0]
-                else:
-                    rating = ""
+                rating = browser.find_elements_by_xpath(xpath_review)[review_index].find_elements_by_xpath(".//span")[0].get_attribute("data-tooltip-html").split("<")[0]
             except NoSuchElementException:
-                print("Exception")
+                print("Rating not found")
                 rating = ""
             finally:
                 ratings.append(rating)
 
-        for rating, link in zip(ratings, elements):
-            if "?snr" not in link.get_attribute("href").split("/")[5] and rating != "":
-                game_link_list.append(link.get_attribute("href"))
+        added = False
+        xpath_links = ".//div[@id='search_resultsRows']//a[contains(@href, 'steampowered.com/app/') or contains(@href, 'steampowered.com/sub/')]"
+        for link_index in range(len(ratings)):
+            href = browser.find_elements_by_xpath(xpath_links)[link_index].get_attribute("href").split("/")
+            if "?snr" not in href[5] and "sub" not in href[3] and ratings[link_index] != "":
+                added = True
+                game_link_list.append(href)
 
         print("Time Elapsed: {:.2f}   \tLinks Collected: {}".format(time.time() - start_time, len(game_link_list)))
-        # if len(game_link_list) > 20:
-        #     break
+        if added == False:
+            return game_link_list
+
+        # if len(game_link_list) > 60:
+        #     return game_link_list
         # Check if there is any more pages left
         try:
             wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable").click()
@@ -135,7 +139,7 @@ def scrape_links(browser):
             break
     return game_link_list
 
-def wait_till_success(browser, xpath, timeout=4, retry_time=20, wait_time=1, condition="visibility_of_element_located"):
+def wait_till_success(browser, xpath, timeout=4, retry_time=20, wait_time=1, condition="visibility_of_element_located", refresh=False):
     start_time = time.time()
     found = False
     element = None
@@ -145,15 +149,18 @@ def wait_till_success(browser, xpath, timeout=4, retry_time=20, wait_time=1, con
             found = True
             break
         except WebDriverException as e:
-            print("Exception when trying to find element: {}, {}".format(xpath, e))
+            if refresh:
+                print("Refreshing!")
+                browser.refresh()
+                refresh = False
+            print("Exception when trying to find element: {}, {}".format(xpath, repr(e)))
             time.sleep(wait_time)
     if found:
         pass
         # print("Time Elapsed: {:.2f}   \tElement found: {}".format(time.time() - start_time, len(xpath)))
     else:
         # print("Time Elapsed: {:.2f}   \tElement not found: {}".format(time.time() - start_time, len(xpath)))
-        pass
-        raise WebDriverException
+        raise WebDriverException()
     return element
 
 scrape(start_url, True, False, True)
