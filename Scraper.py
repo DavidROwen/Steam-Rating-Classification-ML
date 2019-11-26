@@ -63,7 +63,7 @@ def thread_game_pages(game_links, browser, start_time):
     #         game_data_list.append(game_data)
     #         print("Total Time: {:.1f}  Time Elapsed: {:.1f}  Average Time: {:.1f}  Pages Scanned: {}  Done: {:.3f}%\tGame Collected: {}".format(time.time() - start_time, game_data[1], (time.time() - start_time)/total, total, 100 * (total/all_games), game_data[2]))
 
-    build_arff_from_games(game_data_list)
+    build_arff_from_games(result_list)
 
 def scrape_game_page(game_link):
     option = webdriver.ChromeOptions()
@@ -110,8 +110,8 @@ def scrape_game_page(game_link):
             browser.refresh()
 
     browser.close()
-    print("Got {}".format(current_game.name))
-    return current_game , time.time() - start_time, current_game.name
+    print("Got {} in {} seconds".format(current_game.name, time.time() - start_time))
+    return current_game
 
 def scrape_links(browser):
     start_time = time.time()
