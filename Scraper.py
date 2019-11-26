@@ -93,12 +93,15 @@ def scrape_game_page(browser, game_link):
 def scrape_links(browser):
     start_time = time.time()
     game_link_list = []
-    pages = 0
-    while True:
-        time.sleep(1)
-        # Grab elements from the page
+    max_pages = 806
+    base_link = "https://store.steampowered.com/search/?sort_by=Reviews_DESC&category1=998&page="
+    # Grab elements from each page
+    for page in range(1, max_pages + 1):
+        browser.get(base_link + str(page))
+        
         try:
-            wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable", refresh=True)
+            if page != max_pages:
+                wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable", refresh=True)
         except WebDriverException:
             print("Refreshing!")
             browser.refresh()
@@ -111,8 +114,7 @@ def scrape_links(browser):
         ratings = []
         xpath_review = ".//div[contains(@class, 'search_reviewscore')]"
         for review_index in range(len(browser.find_elements_by_xpath(xpath_review))):
-            retrys = 0
-            while retrys < 5:
+            for _ in range(5):
                 try:
                     rating = browser.find_elements_by_xpath(xpath_review)[review_index].find_elements_by_xpath(".//span")[0].get_attribute("data-tooltip-html").split("<")[0]
                 except NoSuchElementException:
@@ -121,34 +123,26 @@ def scrape_links(browser):
                 except StaleElementReferenceException:
                     print("Stale so trying again")
                     rating = ""
-                retrys += 1
+                except IndexError:
+                    print("Refreshing!")
+                    browser.refresh()
             ratings.append(rating)
 
-        added = False
         xpath_links = ".//div[@id='search_resultsRows']//a[contains(@href, 'steampowered.com/app/') or contains(@href, 'steampowered.com/sub/')]"
         for link_index in range(len(ratings)):
-            retrys = 0
-            while retrys < 5:
-                href = browser.find_elements_by_xpath(xpath_links)[link_index].get_attribute("href").split("/")
-                if "?snr" not in href[5] and "sub" not in href[3] and ratings[link_index] != "":
-                    added = True
-                    game_link_list.append(href)
-                    break
-                retrys += 1
+            for _ in range(5):
+                try:
+                    href = browser.find_elements_by_xpath(xpath_links)[link_index].get_attribute("href").split("/")
+                    if "?snr" not in href[5] and "sub" not in href[3] and ratings[link_index] != "":
+                        game_link_list.append(href)
+                        break
+                except StaleElementReferenceException:
+                    print("Stale so trying again")
 
-        pages += 1
-        print("Time Elapsed: {:.2f}   \tLinks Collected: {} \tPages: {}".format(time.time() - start_time, len(game_link_list), pages))
-        if added == False:
-            return game_link_list
-
-        # if len(game_link_list) > 60:
-        #     return game_link_list
-        # Check if there is any more pages left
-        try:
-            wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable", refresh=True).click()
-        except NoSuchElementException:
-            print("No more games found!")
-            break
+        print("Time Elapsed: {:.2f}   \tLinks Collected: {} \tPages: {}".format(time.time() - start_time, len(game_link_list), page))
+        
+        if page == max_pages:
+            print("Last page reached")
 
     return game_link_list
 
