@@ -20,15 +20,15 @@ def scrape(entry_point, save=False, use_cached=False, links_only=False):
         browser = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=option)
 
         if not use_cached:
-            browser.get(entry_point)
+            # browser.get(entry_point)
             print("### Gathering Links ###")
 
-            # Wait for page to load
-            try:
-                wait_till_success(browser, "//a[1]//div[1]//img[1]")
-            except TimeoutException:
-                print("Timed out waiting for page to load")
-                browser.quit()
+            # # Wait for page to load
+            # try:
+            #     wait_till_success(browser, "//a[1]//div[1]//img[1]")
+            # except TimeoutException:
+            #     print("Timed out waiting for page to load")
+            #     browser.quit()
 
             # Collect the links to each games page
             game_link_list = scrape_links(browser)
@@ -41,54 +41,75 @@ def scrape(entry_point, save=False, use_cached=False, links_only=False):
             with open ('game-store-page-links', 'rb') as fp:
                 game_link_list = pickle.load(fp)
 
-        if not links_only:
-            game_data_list = []
-            print("### Scraping Game Pages ###")
-            # Go to each games page to collect the rating and tag information
-            for game in game_link_list:
-                game_data = scrape_game_page(browser, game)
-                if game_data != []:
-                    game_data_list.append(game_data)
+        game_links = []
+        for game in game_link_list:
+            game_links.append("/".join(game))
 
-            build_arff_from_games(game_data_list)
+        if not links_only:
+            thread_game_pages(game_links, browser, start_time)
     finally:
-        pass
-    #     browser.close()
+        browser.close()
     print("Total Time Elapsed: {:.2f}".format(time.time() - start_time))
 
+def thread_game_pages(game_links, browser, start_time):
+    game_data_list = []
+    print("### Scraping Game Pages ###")
+    print("{} Games to collect".format(len(game_links)))
+    # Go to each games page to collect the rating and tag information
+    all_games = len(game_links)
+    total = 0
+    for game in game_links:
+        game_data = scrape_game_page(browser, game)
+        total += 1
+        # print(game_data)
+        if game_data != []:
+            game_data_list.append(game_data)
+            print("Total Time: {:.1f}  Time Elapsed: {:.1f}  Average Time: {:.1f}  Pages Scanned: {}  Done: {:.3f}%\tGame Collected: {}".format(time.time() - start_time, game_data[1], (time.time() - start_time)/total, total, 100 * (total/all_games), game_data[2]))
+
+    build_arff_from_games(game_data_list)
 
 def scrape_game_page(browser, game_link):
     start_time = time.time()
+    # print("Getting {}".format(game_link))
     browser.get(game_link)
-
+    time.sleep(1)
     current_game = Game(game_link.split("/")[5])
     current_game.tags = []
     
+    result = browser.find_elements_by_xpath("//h2[contains(text(),'This Game may contain content not appropriate for')]")
+    if result != []:
+        print("Mature Game: {}, Ignoring".format(current_game.name))
+        return ([])
+
     # Make sure the page is loaded
-    wait_till_success(browser, "//img[@class='game_header_image_full']")
+    wait_till_success(browser, "//img[@class='game_header_image_full']", refresh=True)
     
     # Check if the game even has rating
     try:
         rating_field = wait_till_success(browser, "//div[@class='summary column']//span[1]")
     except:
-        return []
+        return ([])
     if "not_enough_reviews" in rating_field.get_attribute("class"):
-        return []
+        return ([])
     current_game.rating = rating_field.text
 
-    # Open the tag page
-    wait_till_success(browser, "//div[@class='app_tag add_button']", condition="element_to_be_clickable").click()
+    for _ in range(5):
+        try:
+            # Open the tag page
+            wait_till_success(browser, "//div[@class='app_tag add_button']", condition="element_to_be_clickable").click()
+            time.sleep(1)
+            # Wait till the modal is loaded
+            # wait_till_success(browser, "//span[contains(text(),'Close')]")
+            
+            tags = []
+            tags = browser.find_elements_by_xpath("//div[@class='app_tag_control popular']//a[@class='app_tag']")
+            for tag in tags:
+                current_game.tags.append(tag.text)
+        except WebDriverException:
+            browser.refresh()
 
-    # Wait till the modal is loaded
-    wait_till_success(browser, "//span[contains(text(),'Close')]")
     
-    tags = []
-    tags = browser.find_elements_by_xpath("//div[@class='app_tag_control popular']//a[@class='app_tag']")
-    for tag in tags:
-        current_game.tags.append(tag.text)
-    
-    print("Time Elapsed: {:.2f}   \tGame Collected: {}".format(time.time() - start_time, current_game.name))
-    return current_game
+    return current_game , time.time() - start_time, current_game.name
 
 def scrape_links(browser):
     start_time = time.time()
@@ -167,4 +188,4 @@ def wait_till_success(browser, xpath, timeout=4, retry_time=20, wait_time=1, con
         
     return element
 
-scrape(start_url, True, False, True)
+scrape(start_url, save=False, use_cached=True, links_only=False)
