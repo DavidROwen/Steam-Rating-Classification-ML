@@ -15,63 +15,70 @@ start_url = "https://store.steampowered.com/search/?sort_by=Reviews_DESC&categor
 
 def scrape(entry_point, save=False, use_cached=False, links_only=False):
     start_time = time.time()
-    try:
-        option = webdriver.ChromeOptions()
-        option.add_argument(" - incognito")
-        browser = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=option)
-
-        if not use_cached:
+    if not use_cached:
+        try:
             print("### Gathering Links ###")
+            option = webdriver.ChromeOptions()
+            option.add_argument(" - incognito")
+            browser = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=option)
 
             # Collect the links to each games page
             game_link_list = scrape_links(browser)
-            print(game_link_list)
             if save:
                 with open('game-store-page-links', 'wb') as fp:
                     pickle.dump(game_link_list, fp)
+        finally:
             browser.close()     
-        else:
-            with open ('game-store-page-links', 'rb') as fp:
-                game_link_list = pickle.load(fp)
+    else:
+        with open ('game-store-page-links', 'rb') as fp:
+            game_link_list = pickle.load(fp)
 
-        game_links = []
-        for game in game_link_list:
-            game_links.append("/".join(game))
+    game_links = []
+    for game in game_link_list:
+        game_links.append("/".join(game))
 
-        if not links_only:
-            thread_game_pages(game_links, browser, start_time)
-    finally:
-        browser.close()
+    if not links_only:
+        thread_game_pages(game_links, browser, start_time)
+        
     print("Total Time Elapsed: {:.2f}".format(time.time() - start_time))
 
+def chunkify(l, n):
+    # Yield successive n-sized chunks from l
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+        
 def thread_game_pages(game_links, browser, start_time):
     print("### Scraping Game Pages ###")
     print("{} Games to collect".format(len(game_links)))
+    
+    chunked = chunkify(game_links, 50)
 
     game_data_list = []
     pool = Pool(processes = 3)
-    result_list = pool.map(scrape_game_page, game_links)
+    result_list = pool.map(scrap_chunk_of_pages, chunked)
 
-    # # Go to each games page to collect the rating and tag information
-    # all_games = len(game_links)
-    # total = 0
-    # for game in game_links:
-    #     game_data = scrape_game_page(browser, game)
-    #     total += 1
-    #     # print(game_data)
-    #     if game_data != []:
-    #         game_data_list.append(game_data)
-    #         print("Total Time: {:.1f}  Time Elapsed: {:.1f}  Average Time: {:.1f}  Pages Scanned: {}  Done: {:.3f}%\tGame Collected: {}".format(time.time() - start_time, game_data[1], (time.time() - start_time)/total, total, 100 * (total/all_games), game_data[2]))
+    # Flatten the list
+    results = [item for sublist in result_list for item in sublist]
 
-    build_arff_from_games(result_list)
+    build_arff_from_games(results)
 
-def scrape_game_page(game_link):
+def scrap_chunk_of_pages(chunk):
+    start_time = time.time()
     option = webdriver.ChromeOptions()
     option.add_argument(" - incognito")
     browser = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=option)
 
-    start_time = time.time()
-    # print("Getting {}".format(game_link))
+    result = []
+    for game in chunk:
+        game_data = scrape_game_page(browser, game)
+        if game_data != []:
+            result.append(game_data)
+
+    browser.close()
+    print("Got {} games in {:.2f} seconds".format(len(chunk), time.time() - start_time))
+    return result
+
+def scrape_game_page(browser, game_link):
     browser.get(game_link)
     time.sleep(1)
     current_game = Game(game_link.split("/")[5])
@@ -100,17 +107,18 @@ def scrape_game_page(game_link):
             wait_till_success(browser, "//div[@class='app_tag add_button']", condition="element_to_be_clickable").click()
             
             # Wait till the modal is loaded
-            wait_till_success(browser, "//div[@class='app_tag_control popular']//a[@class='app_tag']")
-            
+            wait_till_success(browser, "//span[contains(text(),'Close')]", condition="element_to_be_clickable")
+
             tags = []
             tags = browser.find_elements_by_xpath("//div[@class='app_tag_control popular']//a[@class='app_tag']")
-            for tag in tags:
-                current_game.tags.append(tag.text)
-        except WebDriverException:
+            for tag_index in range(len(tags)):
+                current_game.tags.append(browser.find_elements_by_xpath("//div[@class='app_tag_control popular']//a[@class='app_tag']")[tag_index].text)
+        except NoSuchElementException:
+            print("No such element exception")
+            browser.refresh()        
+        except StaleElementReferenceException:
+            print("Stale element exception")
             browser.refresh()
-
-    browser.close()
-    print("Got {} in {} seconds".format(current_game.name, time.time() - start_time))
     return current_game
 
 def scrape_links(browser):
