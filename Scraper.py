@@ -7,6 +7,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import WebDriverException
 from multiprocessing import Process, Queue, Pool
+from os import getpid
 import time
 import pickle
 from ArffBuilder import Game, build_arff_from_games
@@ -35,11 +36,11 @@ def scrape(entry_point, save=False, use_cached=False, links_only=False):
 
     game_links = []
     for game in game_link_list:
-        game_links.append("/".join(game))
+        game_links.append("/".join(game[:-1]))
 
     if not links_only:
-        thread_game_pages(game_links, browser, start_time)
-        
+        thread_game_pages(game_links, start_time)
+
     print("Total Time Elapsed: {:.2f}".format(time.time() - start_time))
 
 def chunkify(l, n):
@@ -47,14 +48,14 @@ def chunkify(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
         
-def thread_game_pages(game_links, browser, start_time):
+def thread_game_pages(game_links, start_time):
     print("### Scraping Game Pages ###")
     print("{} Games to collect".format(len(game_links)))
     
     chunked = chunkify(game_links, 50)
 
     game_data_list = []
-    pool = Pool(processes = 3)
+    pool = Pool(processes = 4)
     result_list = pool.map(scrap_chunk_of_pages, chunked)
 
     # Flatten the list
@@ -66,16 +67,36 @@ def scrap_chunk_of_pages(chunk):
     start_time = time.time()
     option = webdriver.ChromeOptions()
     option.add_argument(" - incognito")
+    prefs = {'profile.managed_default_content_settings.images':2 , 'disk-cache-size': 4096}
+    option.add_experimental_option("prefs", prefs)
     browser = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=option)
-
+    
+    # print("{} Processing: {}".format(getpid(), chunk))
+    # print("{} Processing".format(getpid()))
+    
     result = []
-    for game in chunk:
-        game_data = scrape_game_page(browser, game)
-        if game_data != []:
-            result.append(game_data)
-
-    browser.close()
-    print("Got {} games in {:.2f} seconds".format(len(chunk), time.time() - start_time))
+    try:
+        for game in chunk:
+            success = False
+            for _ in range(5):
+                try:
+                    game_data = scrape_game_page(browser, game)
+                    if game_data != []:
+                        result.append(game_data)
+                    success = True
+                    break
+                except Exception as e:
+                    print("Page parse failed: {}   Exception {}".format(game, e))
+            if not success:
+                game_data = scrape_game_page(browser, game)
+                if game_data != []:
+                    result.append(game_data)
+            # [print("{} collected {} games so far".format(getpid(), len(result)))]
+    except Exception as e:
+        print("Exception!!! {}".format(e))
+    finally:
+        browser.close()
+    print("{} got {} games in {:.2f} seconds".format(getpid(), len(result), time.time() - start_time))
     return result
 
 def scrape_game_page(browser, game_link):
@@ -86,11 +107,12 @@ def scrape_game_page(browser, game_link):
     
     result = browser.find_elements_by_xpath("//h2[contains(text(),'This Game may contain content not appropriate for')]")
     if result != []:
-        print("Mature Game: {}, Ignoring".format(current_game.name))
+        # print("Mature Game: {}, Ignoring".format(current_game.name))
         return ([])
 
     # Make sure the page is loaded
-    wait_till_success(browser, "//img[@class='game_header_image_full']", refresh=True)
+    wait_till_success(browser, "//div[@class='app_tag add_button']", condition="element_to_be_clickable", refresh=True)
+    # wait_till_success(browser, "//img[@class='game_header_image_full']", refresh=True)
     
     # Check if the game even has rating
     try:
@@ -104,8 +126,18 @@ def scrape_game_page(browser, game_link):
     for _ in range(5):
         try:
             # Open the tag page
-            wait_till_success(browser, "//div[@class='app_tag add_button']", condition="element_to_be_clickable").click()
-            
+            clicked = False
+            for _ in range(5):
+                try:
+                    wait_till_success(browser, "//div[@class='app_tag add_button']", condition="element_to_be_clickable").click()
+                    clicked = True
+                    break
+                except:
+                    time.sleep(.5)
+            if not clicked:
+                raise WebDriverException("Couldn't open modal")
+
+
             # Wait till the modal is loaded
             wait_till_success(browser, "//span[contains(text(),'Close')]", condition="element_to_be_clickable")
 
@@ -113,6 +145,7 @@ def scrape_game_page(browser, game_link):
             tags = browser.find_elements_by_xpath("//div[@class='app_tag_control popular']//a[@class='app_tag']")
             for tag_index in range(len(tags)):
                 current_game.tags.append(browser.find_elements_by_xpath("//div[@class='app_tag_control popular']//a[@class='app_tag']")[tag_index].text)
+            break
         except NoSuchElementException:
             print("No such element exception")
             browser.refresh()        
@@ -134,7 +167,7 @@ def scrape_links(browser):
             if page != max_pages:
                 wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable", refresh=True)
         except WebDriverException:
-            print("Refreshing!")
+            # print("Refreshing!")
             browser.refresh()
             try:
                 wait_till_success(browser, "//a[contains(text(),'>')]", condition="element_to_be_clickable")
@@ -155,7 +188,7 @@ def scrape_links(browser):
                     print("Stale so trying again")
                     rating = ""
                 except IndexError:
-                    print("Refreshing!")
+                    # print("Refreshing!")
                     browser.refresh()
             ratings.append(rating)
 
@@ -188,13 +221,13 @@ def wait_till_success(browser, xpath, timeout=4, retry_time=20, wait_time=1, con
             break
         except WebDriverException as e:
             if refresh:
-                print("Refreshing!")
+                # print("Refreshing!")
                 browser.refresh()
                 refresh = False
-            print("Exception when trying to find element: {}, {}".format(xpath, repr(e)))
+            # print("Exception when trying to find element: {}, {}".format(xpath, repr(e)))
             time.sleep(wait_time)
     if not found:
-        raise WebDriverException("Element not found")
+        raise WebDriverException("Element not found: {}".format(xpath))
         
     return element
 
