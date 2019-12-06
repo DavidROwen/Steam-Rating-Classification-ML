@@ -121,7 +121,7 @@ class Arff:
                             elif attr_def.lower() == "integer":
                                 self.attr_types.append("ordinal")
                             else:
-                                # attribute is discretez
+                                # attribute is discrete
                                 assert attr_def[0] == '{' and attr_def[-1] == '}'
                                 attr_def = attr_def[1:-1]
                                 attr_vals = attr_def.split(",")
