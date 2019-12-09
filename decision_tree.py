@@ -3,20 +3,21 @@ from arff import Arff
 from sklearn import tree
 import graphviz 
 
-def sk_learn(data="default.arff"):
+def sk_learn(data="oldGames.arff", min_split=300, min_leaf=15):
     folds = 10
     mat = Arff(data, label_count=1)
 
     counts = [] ## this is so you know how many types for each column
     for i in range(mat.data.shape[1]):
         counts += [mat.unique_value_count(i)]
-    
+
+    # np.random.seed(35)
     np.random.shuffle(mat.data)
     splits = np.array_split(mat.data, folds)
     
     Acc = 0
-    min_split = 300
-    print("Minsplit: {}".format(min_split))
+    # min_split = 300
+    # print("Minsplit: {}".format(min_split))
     for f in range(folds):
         # print("Fold {}:".format(f))
         train = np.array([])
@@ -29,8 +30,7 @@ def sk_learn(data="default.arff"):
         data = train[:,0:-1]
         labels = train[:,-1].reshape(-1,1)
 
-
-        clf = tree.DecisionTreeClassifier(criterion="entropy", min_samples_split=min_split, min_samples_leaf=25)
+        clf = tree.DecisionTreeClassifier(min_samples_split=min_split, min_samples_leaf=min_leaf)
         clf = clf.fit(data, labels)
         pred = clf.predict(data)
         new_acc = score(pred, labels)
@@ -66,8 +66,12 @@ def score(pred, labels):
             new_acc += 1
     return new_acc / len(pred)
 
+
+rounds = 5
+# min_split = 300
+# for split in range(1, 10):
+#     print("Leaf size {}".format(split))
 total_acc = 0
-rounds = 4
 for _ in range(rounds):
     total_acc += sk_learn()
-print("Accuracy = [{:.4f}]".format(total_acc / rounds))
+print("Total Acvcuracy = [{:.4f}]".format(total_acc / rounds))

@@ -11,11 +11,11 @@
 #     Overwhelmingly_Negative
 # }
 
-def remove_labels(labels, old, new):
+def remove_labels(labels_keep, labels_throw, old, new):
 
     with open(old) as oldfile, open(new, 'w') as newfile:
         for line in oldfile:
-            if not any(bad_label in line for bad_label in labels):
+            if any(label in line for label in labels_keep) or not any(bad_label in line for bad_label in labels_throw):
                 newfile.write(line)
 
-remove_labels(["Negative", "Positive"], "default.arff", "oldgames.arff")
+remove_labels(["Very", "Overwhelmingly", "Mixed"],["Negative", "Positive"], "default.arff", "oldgames.arff")
