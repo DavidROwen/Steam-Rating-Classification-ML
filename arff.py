@@ -21,7 +21,7 @@ class Arff:
     To do: Change backend to use Pandas dataframe
     """
 
-    def __init__(self, arff=None, row_idx=None, col_idx=None, label_count=None, name="Untitled", numeric=True, missing=float("NaN")):
+    def __init__(self, arff=None, row_idx=None, col_idx=None, label_count=1, name="Untitled", numeric=True, missing=float("NaN")):
         """
         Args:
             arff (str or Arff object): Path to arff file or another arff file
