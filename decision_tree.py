@@ -30,7 +30,7 @@ def sk_learn(data="oldGames.arff", min_split=300, min_leaf=15):
         data = train[:,0:-1]
         labels = train[:,-1].reshape(-1,1)
 
-        clf = tree.DecisionTreeClassifier(min_samples_split=min_split, min_samples_leaf=min_leaf)
+        clf = tree.DecisionTreeClassifier() #min_samples_split=min_split, min_samples_leaf=min_leaf
         clf = clf.fit(data, labels)
         pred = clf.predict(data)
         new_acc = score(pred, labels)
@@ -46,10 +46,10 @@ def sk_learn(data="oldGames.arff", min_split=300, min_leaf=15):
     Acc = Acc / folds
     print("Accuracy = [{:.4f}]".format(Acc))
 
-    # classes =["Overwhelmingly_Positive", "Very_Positive", "Positive", "Mostly_Positive", "Mixed", "Mostly_Negative", "Negative", "Very_Negative", "Overwhelmingly_Negative"]
-    # dot_data = tree.export_graphviz(clf, out_file=None, feature_names=mat.get_attr_names()[:-1], class_names=classes, max_depth=6, filled=True, rounded=True)     
-    # graph = graphviz.Source(dot_data) 
-    # graph.render("wave") 
+    classes =["Overwhelmingly_Positive", "Very_Positive", "Positive", "Mostly_Positive", "Mixed", "Mostly_Negative", "Negative", "Very_Negative", "Overwhelmingly_Negative"]
+    dot_data = tree.export_graphviz(clf, out_file=None, feature_names=mat.get_attr_names()[:-1], class_names=classes, filled=True, rounded=True)    # max_depth=6, 
+    graph = graphviz.Source(dot_data) 
+    graph.render("old_games") 
 
     return Acc
 
@@ -66,12 +66,14 @@ def score(pred, labels):
             new_acc += 1
     return new_acc / len(pred)
 
+sk_learn()
 
-rounds = 5
-# min_split = 300
-# for split in range(1, 10):
+
+# rounds = 1
+# # min_split = 300
+# for split in range(25, 600, 25):
 #     print("Leaf size {}".format(split))
-total_acc = 0
-for _ in range(rounds):
-    total_acc += sk_learn()
-print("Total Acvcuracy = [{:.4f}]".format(total_acc / rounds))
+#     total_acc = 0
+#     for _ in range(rounds):
+#         total_acc += sk_learn(min_split=split)
+#     # print("Total Acvcuracy = [{:.4f}]".format(total_acc / rounds))
